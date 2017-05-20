@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+
 # Copyright (c) 2017-present, Facebook, Inc.
 # All rights reserved.
 #
@@ -6,7 +8,8 @@
 # can be found in the PATENTS file in the same directory.
 #
 
-#!/usr/bin/env python
+from __future__ import print_function
+
 
 """
 
@@ -38,8 +41,10 @@ The script produces the following files under --output_dir:
 
 import argparse
 import os
-from itertools import izip
-
+try:
+    from itertools import izip
+except ImportError:
+    izip = zip
 
 def main():
     parser = argparse.ArgumentParser(description='symmetric alignment builer')
@@ -71,7 +76,7 @@ def main():
     with open(args.source_file, 'r') as src, open(args.target_file, 'r') as tgt:
         with open(joined_file, 'w') as joined:
             for s, t in izip(src, tgt):
-                print >> joined, '%s ||| %s' % (s.strip(), t.strip())
+                print('%s ||| %s' % (s.strip(), t.strip()), file=joined)
 
     bwd_align_file = os.path.join(args.output_dir, 'align.backward')
 

@@ -69,9 +69,9 @@ ConvModel.makeEncoder = argcheck{
         local dict = config.srcdict
         local embedToken = mutils.makeLookupTable(config, dict:size(),
             dict:getPadIndex())
-        -- XXX Assumes source sentence length < 1024
+        -- XXX Assumes source sentence length < 512
         local embedPosition =
-            mutils.makeLookupTable(config, 1024, dict:getPadIndex())
+            mutils.makeLookupTable(config, 512, dict:getPadIndex())
         local embed =
             nn.CAddTable()({embedToken(tokens), embedPosition(positions)})
         if config.dropout_src > 0 then

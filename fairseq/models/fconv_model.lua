@@ -174,7 +174,7 @@ FConvModel.makeEmbedding = argcheck{
     {name='dict', type='Dictionary'},
     {name='dropout', type='number', opt=true},
     call = function(self, config, dict, dropout)
-        local maxPosition = 1024
+        local maxPosition = 512
         local embedTokens = self:makeLookupTable(config, dict:size(),
             config.nembed, dict:getPadIndex())
         local embedPositions = self:makeLookupTable(config, maxPosition,

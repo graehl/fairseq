@@ -13,10 +13,37 @@
 
 local bleu = {}
 
+local function grsplit(str, sSeparator, nMax, bRegexp)
+   sSeparator = sSeparator or ' '
+   assert(sSeparator ~= "")
+   assert(nMax == nil or nMax >= 1)
+   local aRecord = {}
+   if str:len() > 0 then
+      local bPlain = not bRegexp
+      nMax = nMax or -1
+      local nStart = 1, 1
+      local nFirst, nLast = str:find(sSeparator, nStart, bPlain)
+      while nFirst and nMax ~= 0 do
+         table.insert(aRecord, str:sub(nStart, nFirst-1))
+         nStart = nLast + 1
+         nFirst, nLast = str:find(sSeparator, nStart, bPlain)
+         nMax = nMax - 1
+      end
+      table.insert(aRecord, str:sub(nStart))
+   end
+   return aRecord
+end
+
+local function deBPE(tokens, bpecont)
+    return grsplit(string.gsub(table.concat(tokens, ' '), bpecont .. ' ', ''), ' ')
+end
+
 local function countNGrams(tokens, order)
     local ngramCounts = {}
     local orderString = tostring(order)
     local len = #tokens
+    tokens = deBPE(tokens, '%@%@')
+    tokens = deBPE(tokens, '__LW_SW__')
     for i = 1, len - order + 1 do
         local ngram = orderString
         for j = 1, order do

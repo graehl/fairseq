@@ -59,7 +59,7 @@ config.nhids = utils.parseListOrDefault(
 config.kwidths = utils.parseListOrDefault(
     config.fconv_kwidths, config.nenclayer, config.kwidth)
 
--- deconder
+-- decoder
 config.nlmhids = utils.parseListOrDefault(
     config.fconv_nlmhids, config.nlayer, config.nhid)
 config.klmwidths = utils.parseListOrDefault(

@@ -42,14 +42,26 @@ end
 
 local scorer = bleu.scorer(config.order)
 
+local function extralines(fd, name)
+    count = 1
+    while true do
+       local line = readLine(fd)
+       if line == nil then
+           break
+       end
+       count = count + 1
+    end
+    error (tostring(count) .. ' extra lines in ' .. name)
+end
+
 -- Process system output and reference file
 while true do
     local sysTok = readLine(fdsys)
     local refTok = readLine(fdref)
     if sysTok == nil and refTok ~= nil then
-        error 'Insufficient number of lines in system output'
+        extralines(fdref, 'reference')
     elseif refTok == nil and sysTok ~= nil then
-        error 'Insufficient number of lines in reference output'
+        extralines(fdsys, 'system')
     elseif sysTok == nil and refTok == nil then
         break
     end
