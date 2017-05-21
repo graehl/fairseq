@@ -333,7 +333,6 @@ function Model:updateMinMaxLenProb(ldist, dict, step, minlen, maxlen)
     -- After reaching maxlen, we need to make sure EOS is selected
     -- so, we make probabilities of everything else -inf
     if step > maxlen then
-        local eos = dict:getEosIndex()
         local vocabsize = ldist:size(2)
         ldist:narrow(2, 1, eos - 1):fill(-math.huge)
         ldist:narrow(2, eos + 1, vocabsize - eos):fill(-math.huge)

@@ -20,6 +20,7 @@ local argcheck = require 'argcheck'
 local mutils = require 'fairseq.models.utils'
 local utils = require 'fairseq.utils'
 local rmutils = require 'rnnlib.mutils'
+local klimits = require 'fairseq.limits'
 
 local cuda = utils.loadCuda()
 
@@ -45,6 +46,7 @@ AvgpoolModel.make = argcheck{
     end
 }
 
+
 AvgpoolModel.makeEncoder = argcheck{
     doc=[[
 This encoder computes embeddings of source language words and their positions.
@@ -62,9 +64,9 @@ pooling over a small context).
         local dict = config.srcdict
         local embedToken = mutils.makeLookupTable(config, dict:size(),
             dict:getPadIndex())
-        -- XXX Assumes source sentence length < 1024
+        -- XXX Assumes source sentence length < klimits.maxsrclen
         local embedPosition =
-            mutils.makeLookupTable(config, 1024, dict:getPadIndex())
+            mutils.makeLookupTable(config, klimits.maxsrclen, dict:getPadIndex())
         local embed =
             nn.CAddTable()({embedToken(tokens), embedPosition(positions)})
         if config.dropout_src > 0 then

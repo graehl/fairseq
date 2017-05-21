@@ -112,6 +112,7 @@ function search.greedy(ttype, dict, maxlen)
     return f
 end
 
+
 search.beam = argcheck{
     {name='ttype', type='string'},
     {name='dict', type='Dictionary'},
@@ -122,9 +123,9 @@ search.beam = argcheck{
     {name='subwordPenalty', type='number', default=0},
     {name='coveragePenalty', type='number', default=0},
     {name='vocab', type='tds.Hash', opt=true},
-    {name='subwordContSuffix', type='string', default='|'},
+    {name='maxlenratio', type='number', opt=true},
     call = function(ttype, dict, srcdict, beam, lenPenalty,
-        unkPenalty, subwordPenalty, coveragePenalty, vocab, subwordContSuffix)
+        unkPenalty, subwordPenalty, coveragePenalty, vocab, maxlenratio)
     -- Beam search: Keep track of `beam` hypotheses per sentence, move
     -- finished hypothesis (EOS symol) out of the beam (`finalized` table)
     -- and stop once there are `beam` finished hypotheses per sentence.
@@ -139,8 +140,10 @@ search.beam = argcheck{
     local backp = {}
     local finalized = {}
     local sourcelen = nil
+    local maxsteps = nil
     local f = {}
 
+    local subwordContSuffix = '__LW_SW__'
     local swcLen = subwordContSuffix:len()
 
     -- The penalty tensor is added to the log-probs produced by the model.
@@ -165,8 +168,12 @@ search.beam = argcheck{
         for i = 1, bsz do finalized[i] = {} end
         notEos = bsz
         sourcelen = sample.source:size(1)
-        bpenalties = torch.expand(penalties:view(1, -1), bsz * beam,
-            dict:size())
+        if maxlenratio and maxlenratio > 0 then
+            maxsteps = math.floor(sourcelen * maxlenratio) + 1
+        else
+            maxsteps = nil
+        end
+        bpenalties = torch.expand(penalties:view(1, -1), bsz * beam, dict:size())
 
         if vocab then
             -- Add source sentence words to the vocabulary
@@ -253,7 +260,9 @@ search.beam = argcheck{
                         attn:narrow(1, l, 1):copy(ascores[l]:narrow(1, bp, 1))
                         bp = backp[l][bp]
                     end
-                    score = score + coveragePenalty * coverageP(attn)
+                    if coveragePenalty ~= 0 then
+                        score = score + coveragePenalty * coverageP(attn)
+                    end
                     table.insert(finalized[i], {
                         hypo = hypo,
                         score = score,
@@ -295,7 +304,7 @@ search.beam = argcheck{
 
         local vocabsize = ldist:size(2)
         local ldistp = ldist:add(bpenalties:narrow(2, 1, vocabsize)):t()
-        
+
         -- Add log-probs of hypotheses at the previous time-step so ldistp will
         -- represent the total log-probability for each new hypothesis.
         ldistp:addr(1, ones:narrow(1, 1, vocabsize), hscores)
@@ -339,7 +348,7 @@ search.beam = argcheck{
         return {
             nextIn = nextIn,
             nextHid = nextHid,
-            eos = notEos <= 0,
+            eos = notEos <= 0 or maxsteps and step > maxsteps,
         }
     end
 

@@ -16,6 +16,7 @@ require 'xlua'
 require 'optim'
 require 'fairseq'
 
+local modelopt = require 'fairseq.modelopt'
 local tnt = require 'torchnet'
 local plpath = require 'pl.path'
 local pltablex = require 'pl.tablex'
@@ -29,8 +30,7 @@ local cuda = utils.loadCuda()
 assert(cuda.cutorch)
 
 local cmd = torch.CmdLine()
-cmd:option('-sourcelang', 'de', 'source language')
-cmd:option('-targetlang', 'en', 'target language')
+modelopt.addopt(cmd)
 cmd:option('-datadir', 'data-bin')
 cmd:option('-model', 'avgpool', 'model type {avgpool|blstm|conv|fconv}')
 cmd:option('-nembed', 256, 'dimension of embeddings and attention')
@@ -76,10 +76,6 @@ cmd:option('-seed', 1111, 'random number seed')
 cmd:option('-aligndictpath', '', 'path to an alignment dictionary (optional)')
 cmd:option('-nmostcommon', 500,
     'the number of most common words to keep when using alignment')
-cmd:option('-topnalign', 100, 'the number of the most common alignments to use')
-cmd:option('-freqthreshold', 0,
-    'the minimum frequency for an alignment candidate in order' ..
-    'to be considered (default no limit)')
 cmd:option('-ngpus', cuda.cutorch:getDeviceCount(),
     'number of gpus for data parallel training')
 cmd:option('-dropout_src', -1, 'dropout on source embeddings')
@@ -137,25 +133,8 @@ config.maxbatch = config.maxbatch * config.ngpus
 -------------------------------------------------------------------
 -- Load data
 -------------------------------------------------------------------
-config.dict = torch.load(plpath.join(config.datadir,
-    'dict.' .. config.targetlang .. '.th7'))
-print(string.format('| [%s] Dictionary: %d types', config.targetlang,
-    config.dict:size()))
-config.srcdict = torch.load(plpath.join(config.datadir,
-    'dict.' .. config.sourcelang .. '.th7'))
-print(string.format('| [%s] Dictionary: %d types', config.sourcelang,
-    config.srcdict:size()))
 
-if config.aligndictpath ~= '' then
-    config.aligndict = tnt.IndexedDatasetReader{
-        indexfilename = config.aligndictpath .. '.idx',
-        datafilename = config.aligndictpath .. '.bin',
-        mmap = true,
-        mmapidx = true,
-    }
-    config.nmostcommon = math.max(config.nmostcommon, config.dict.nspecial)
-    config.nmostcommon = math.min(config.nmostcommon, config.dict:size())
-end
+local vocab = modelopt.loadvocab(config)
 
 local train, test = data.loadCorpus{
     config = config,
@@ -429,7 +408,8 @@ local function runFinalEval()
             ttype = best_model:type(),
             dict = genconfig.dict,
             srcdict = genconfig.srcdict,
-            beam = genconfig.beam
+            beam = genconfig.beam,
+            -- subwordContSuffix = genconfig.subwordsuffix,
         }
         local _, result = hooks.runGeneration{
             model = best_model,

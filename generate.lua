@@ -14,7 +14,7 @@
 require 'nn'
 require 'xlua'
 require 'fairseq'
-
+local generateopt = require 'fairseq.generateopt'
 local tnt = require 'torchnet'
 local tds = require 'tds'
 local plpath = require 'pl.path'
@@ -27,40 +27,15 @@ local utils = require 'fairseq.utils'
 local pretty = require 'fairseq.text.pretty'
 
 local cmd = torch.CmdLine()
-cmd:option('-path', 'model1.th7,model2.th7', 'path to saved model(s)')
+generateopt.addopt(cmd)
 cmd:option('-nobleu', false, 'don\'t produce final bleu score')
 cmd:option('-quiet', false, 'don\'t print generated text')
-cmd:option('-beam', 1, 'beam width')
-cmd:option('-lenpen', 1,
-    'length penalty: <1.0 favors shorter, >1.0 favors longer sentences')
-cmd:option('-unkpen', 0,
-    'unknown word penalty: <0 produces more, >0 produces less unknown words')
-cmd:option('-subwordpen', 0,
-    'subword penalty: <0 favors longer, >0 favors shorter words')
-cmd:option('-covpen', 0,
-    'coverage penalty: favor hypotheses that cover all source tokens')
-cmd:option('-nbest', 1, 'number of candidate hypotheses')
 cmd:option('-batchsize', 16, 'batch size')
-cmd:option('-minlen', 1, 'minimum length of generated hypotheses')
-cmd:option('-maxlen', 500, 'maximum length of generated hypotheses')
-cmd:option('-sourcelang', 'de', 'source language')
-cmd:option('-targetlang', 'en', 'target language')
-cmd:option('-datadir', 'data-bin')
 cmd:option('-dataset', 'test', 'data subset')
 cmd:option('-partial', '1/1',
     'decode only part of the dataset, syntax: part_index/num_parts')
-cmd:option('-vocab', '', 'restrict output to target vocab')
 cmd:option('-seed', 1111, 'random number seed (for dataset)')
-cmd:option('-model', '', 'model type for legacy models')
 cmd:option('-ndatathreads', 0, 'number of threads for data preparation')
-cmd:option('-aligndictpath', '', 'path to an alignment dictionary (optional)')
-cmd:option('-nmostcommon', 500,
-           'the number of most common words to keep when using alignment')
-cmd:option('-topnalign', 100, 'the number of the most common alignments to use')
-cmd:option('-freqthreshold', -1,
-    'the minimum frequency for an alignment candidate in order' ..
-    'to be considered (default no limit)')
-cmd:option('-fconvfast', false, 'make fconv model faster')
 
 local cuda = utils.loadCuda()
 
@@ -109,75 +84,11 @@ end
 -------------------------------------------------------------------
 -- Load data
 -------------------------------------------------------------------
-config.dict = torch.load(plpath.join(config.datadir,
-    'dict.' .. config.targetlang .. '.th7'))
-print(string.format('| [%s] Dictionary: %d types', config.targetlang,
-    config.dict:size()))
-config.srcdict = torch.load(plpath.join(config.datadir,
-    'dict.' .. config.sourcelang .. '.th7'))
-print(string.format('| [%s] Dictionary: %d types', config.sourcelang,
-    config.srcdict:size()))
 
-if config.aligndictpath ~= '' then
-    config.aligndict = tnt.IndexedDatasetReader{
-        indexfilename = config.aligndictpath .. '.idx',
-        datafilename = config.aligndictpath .. '.bin',
-        mmap = true,
-        mmapidx = true,
-    }
-    config.nmostcommon = math.max(config.nmostcommon, config.dict.nspecial)
-    config.nmostcommon = math.min(config.nmostcommon, config.dict:size())
-end
+local vocab, model, searchf = generateopt.loadVocabModelSearcher(config)
 
 local _, test = data.loadCorpus{config = config, testsets = {config.dataset}}
 local dataset = test[config.dataset]
-
-local model
-if config.model ~= '' then
-    model = mutils.loadLegacyModel(config.path, config.model)
-else
-    model = require(
-        'fairseq.models.ensemble_model'
-    ).new(config)
-    if config.fconvfast then
-        local nfconv = 0
-        for _, fconv in ipairs(model.models) do
-            if torch.typename(fconv) == 'FConvModel' then
-                fconv:makeDecoderFast()
-                nfconv = nfconv + 1
-            end
-        end
-        assert(nfconv > 0, '-fconvfast requires an fconv model in the ensemble')
-    end
-end
-
-local vocab = nil
-if config.vocab ~= '' then
-    vocab = tds.Hash()
-    local fd = io.open(config.vocab)
-    while true do
-        local line = fd:read()
-        if line == nil then
-            break
-        end
-        -- Add word on this line together with all prefixes
-        for i = 1, line:len() do
-            vocab[line:sub(1, i)] = 1
-        end
-    end
-end
-
-local searchf = search.beam{
-    ttype = model:type(),
-    dict = config.dict,
-    srcdict = config.srcdict,
-    beam = config.beam,
-    lenPenalty = config.lenpen,
-    unkPenalty = config.unkpen,
-    subwordPenalty = config.subwordpen,
-    coveragePenalty = config.covpen,
-    vocab = vocab,
-}
 
 local dict, srcdict = config.dict, config.srcdict
 local display = pretty.displayResults(dict, srcdict, config.nbest, config.beam)

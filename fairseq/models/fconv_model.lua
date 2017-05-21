@@ -23,6 +23,7 @@ local argcheck = require 'argcheck'
 local tds = require 'tds'
 local mutils = require 'fairseq.models.utils'
 local utils = require 'fairseq.utils'
+local klimits = require 'fairseq.limits'
 
 local cuda = utils.loadCuda()
 
@@ -174,7 +175,7 @@ FConvModel.makeEmbedding = argcheck{
     {name='dict', type='Dictionary'},
     {name='dropout', type='number', opt=true},
     call = function(self, config, dict, dropout)
-        local maxPosition = 512
+        local maxPosition = klimits.maxsrclen
         local embedTokens = self:makeLookupTable(config, dict:size(),
             config.nembed, dict:getPadIndex())
         local embedPositions = self:makeLookupTable(config, maxPosition,
