@@ -49,7 +49,12 @@ bleuscore() {
 grepmultbleu() {
     #n=1            BLEU (s_sel/s_opt/p)   METEOR (s_sel/s_opt/p) TER (s_sel/s_opt/p)    Length (s_sel/s_opt/p)
     #baseline       19.7 (0.6/*/-)         23.8 (0.3/*/-)         71.6 (0.7/*/-)         89.3 (1.2/*/-)
-    perl -e '$r="[0-9]+[.][0-9+]"; $s="($r)".q{\s+\([^/]+/[^/]+/[^/]+\)}; print STDERR "BLEU\tMETEOR\tTER \tLength\n";while(<>) { print "$1\t$2\t$3\t$4" if m{^\S+\s+$s\s+$s\s+$s\s+$s\s*$} }' "$@"
+    perl -e '$r="[0-9]+[.][0-9+]"; $s="($r)".q{\s+\([^/]+/[^/]+/[^/]+\)}; while(<>) { print "$1\t$2\t$3\t$4" if m{^\S+\s+$s\s+$s\s+$s\s+$s\s*$} }' "$@"
+    #print STDERR "BLEU\tMETEOR\tTER \tLength\n"
+}
+grepbleu() {
+    #eval.test.best.12.lp8.cov0.sw0.sys.detok.lc	 BLEUr1n4[%] 21.4 brevityPenalty: 0.9257 lengthRatio: 0.9283  95%-conf.: 20.3 - 22.51 delta: 1.1
+    perl -ne 'BEGIN{print STDERR "BLEU\tLR\n"}; print "$1\t",sprintf("%.2f",$2) if /\QBLEUr1n4[%]\E ([0-9.]+) .* lengthRatio: ([0-9.]+) /' "$@"
 }
 appendrepn() {
     local n=$1
@@ -102,8 +107,19 @@ config() {
     maxsourcelen=175
 
 
-    batchsz="${batchsize:=32}.${maxbatch:=1536}.${minepochtoanneal:=15}-${maxepoch:=40}"
-    fconvtrained=$trainings/fconv-i${nembed:=768}-o${noutembed:=384}.h${nhid:=768}.o${olayers:=0}x${ohid:=2048}.m${mlayers:=0}x${mhid:=1024}.${nenclayer:=9}-${kwidth:=3}.${nlayer:=6}-${klmwidth:=3}.c${nagglayer:=3}.${attnlayers:=-1}.d${dropout:=.2}_${seed:=$(perl -e 'print int(rand(100000))')}
+    batchsz="${batchsize:=32}.${maxbatch:=1536}.${minepochtoanneal:=18}-${maxepoch:=40}"
+
+
+    #increasing nembed nhid to 640 or 768 also works well. noutembed not so much? more training data supports larger network training w/o overfitting
+
+    if [[ $olayers || $mlayers ]] ; then
+        omlayers=".o${olayers:=0}x${ohid:=2048}.m${mlayers:=0}x${mhid:=1024}"
+    else
+        olayers=0
+        mlayers=0
+    fi
+
+    fconvtrained=$trainings/fconv-i${nembed:=512}-o${noutembed:=384}.h${nhid:=512}$omlayers.${nenclayer:=9}-${kwidth:=3}.${nlayer:=6}-${klmwidth:=3}.c${nagglayer:=3}.${attnlayers:=-1}.d${dropout:=.2}_${seed:=$(perl -e 'print int(rand(100000))')}
 
     encplayers=$((nenclayer-olayers-mlayers))
     encwlayers=$((nenclayer-olayers))
@@ -192,4 +208,21 @@ config() {
         # we want some target unks always??
     fi
     set -e
+}
+modelbest=model_best.th7
+optmodelbest=opt$modelbest
+findunfinished() {
+    for f in ${1:-trainings.jp-en.2}/*; do
+        if [[ -d $f && ! -s $f/$modelbest && ! -s $f/$optmodelbest ]] ; then
+            echo $f
+        fi
+    done
+}
+renamerm() {
+    perl -e '$_=shift;$rm=shift;$was=$_;rename $was,$_ if (s/\Q$rm\E//)' "$@"
+}
+rmo0m0() {
+    for f in "$@"; do
+        renamerm "$f" ".o0x2048.m0x1024"
+    done
 }

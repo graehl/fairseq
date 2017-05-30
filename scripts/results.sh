@@ -31,32 +31,39 @@ sortresults() {
     local results=$1
     sort -r -n -k 5 -k 8 "$results" > ${2:-$results.sorted}
 }
+checkpoints() {
+    perl -ne '$c=$1 if /^\| checkpoint (\d+)/ && $c < $1; END { print ($c+0) }' "$@"
+}
 main() {
     resultsheaders=${results:=results.tsv}.headers
-    headers model beam lenpen BLEU METEOR TER Length > $resultsheaders
+    headers model RAM epoch beam lenpen detBLEU detLR mBLEU METEOR TER Length > $resultsheaders
     cat $resultsheaders
     for f in $(ls -t $(find . -name model_best.th7)); do
         d=`dirname $f`
         dd=`basename $d`
         set -e
         beams="$*"
-        [[ $beams ]] || beams="1 2 4 8 16"
+        [[ $beams ]] || beams="1 8 16"
         for beam in $beams; do
             if [[ $beam = 1 ]] ; then
-                lens="4"
+                lens="15"
             else
-                lens="2 4 8"
+                lens="8 15 30"
             fi
             for lenpen in $lens; do
                 testf=$d/results.b$beam.lp$lenpen
                 multscore=$testf.score.multeval
-                quiet=1 rescore=1 beam=$beam lenpen=$lenpen testf=$testf $eval $d
-                #2>/dev/null >/dev/null
+                lcbleuscore=$testf.score.detok.lcBLEU
+                quiet=1 rescore=1 beam=$beam lenpen=$lenpen testf=$testf $eval $d 2>/dev/null >/dev/null
                 if [[ -s $multscore ]] ; then
                     echo1 $dd
                     echotab `megs1 $f`
+                    echotab
+                    checkpoints $d/*log*
                     echotab $beam
                     echotab $lenpen
+                    echotab
+                    grepbleu < $lcbleuscore
                     echotab
                     grepmultbleu < $multscore
                     echo

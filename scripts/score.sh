@@ -42,8 +42,9 @@ main() {
                      fi
                  done
                  set -x
-                 if [[ -f ${TESTDETOKLC:=test.0.eng} ]] ; then
-                    bleuscore $G.sys.detok.lc $TESTDETOKLC > $score 2>/dev/null
+                 if [[ -f ${detoklc:=${TESTDETOKLC:-test.0.eng}} ]] ; then
+                    [[ $quiet ]] || echo "bleuscore $G.sys.detok.lc $detoklc | tee $score"
+                    bleuscore $G.sys.detok.lc $detoklc > $score 2>/dev/null
                  else
                     bleuscore $G.sys.detok.lc $G.ref.detok.lc > $score 2>/dev/null
                  fi
@@ -57,8 +58,8 @@ main() {
         if [[ $redoall || $rescore || ! -s $multscore ]] ; then
             multeval $G.sys $G.ref > $multscore
         fi
-        [[ $quiet ]] ||             echo `pwd`/$multscore
-        [[ $quiet ]] ||             cat $multscore
+        [[ $quiet ]] ||             echo `pwd`/$multscore `pwd`/$score
+        [[ $quiet ]] ||             tail  $multscore $score
     fi
 }
 main "$@" && exit 0 || exit 1

@@ -55,6 +55,6 @@ main() {
         fairseq optimize-fconv -input_model $model -output_model $optmodel
         ls -l $optmodel
     fi
-    $d/eval.sh $trained
+    seed=$seed $d/eval.sh $trained
 }
 main "$@" && exit 0 || exit 1
