@@ -6,12 +6,13 @@ unbpe() {
 main() {
     set -e
     G=$1
+    G=${G%.score}
     [[ -f $G ]]
     testscore=$G.score
     if [[ $redoall || ! $norescore || ! -s $testscore ]] ; then
         if [[ $redoall || $resplit || ! -s $G.sys.bpe || ! -s $G.ref.bpe ]] ; then
-            grep ^H $G > $G.H
-            grep ^T $G > $G.T
+            grep ^H $G | cut -c3- | sort -n > $G.H
+            grep ^T $G | cut -c3- | sort -n > $G.T
             [[ $quiet ]] || wc -l $G.H $G.T
             cut -f3- < $G.H > $G.sys.bpe
             cut -f2- < $G.T > $G.ref.bpe
@@ -24,20 +25,28 @@ main() {
         [[ $quiet ]] || echo `pwd`/$testscore
         [[ $quiet ]] || cat $testscore
         . `dirname $0`/common.sh
-        if [[ -f srctrglang.sh ]] ; then
-            . srctrglang.sh
-            if [[ -f xmtconfig.sh ]] ; then
-                . xmtconfig.sh
+        dconf=.
+        [[ -f $dconf/srctrglang.sh ]] || dconf=..
+        if [[ -f $dconf/srctrglang.sh ]] ; then
+            . $dconf/srctrglang.sh
+            if [[ -f $dconf/xmtconfig.sh ]] ; then
+                . $dconf/xmtconfig.sh
                 xmtconfig
                 score=$testscore.detok.lcBLEU
-                if [[ $redoall || $redetokbleu || ! -s $score ]] ; then
+                if [[ $redoall || $redotokbleu || ! -s $score ]] ; then
                 (set -e
-                 set -x
                  for f in sys ref; do
-                     xmtiopost $G.$f.bpe $G.$f.detok 2>/dev/null
-                     xmtiolc $G.$f.detok $G.$f.detok.lc 2>/dev/null
+                     if [[ $f = sys || ! -s $G.$f.detok.lc ]] ; then
+                         xmtiopost $G.$f.bpe $G.$f.detok 2>/dev/null
+                         xmtiolc $G.$f.detok $G.$f.detok.lc 2>/dev/null
+                     fi
                  done
-                 bleuscore $G.sys.detok.lc $G.ref.detok.lc >$score 2>/dev/null
+                 set -x
+                 if [[ -f ${TESTDETOKLC:=test.0.eng} ]] ; then
+                    bleuscore $G.sys.detok.lc $TESTDETOKLC > $score 2>/dev/null
+                 else
+                    bleuscore $G.sys.detok.lc $G.ref.detok.lc > $score 2>/dev/null
+                 fi
                 )
                 fi
                 [[ $quiet ]] ||         echo `pwd`/$score

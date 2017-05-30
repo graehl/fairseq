@@ -39,8 +39,8 @@ main() {
     if [[ ! $2 ]] ; then
         outdir=$trained
     fi
-    mkdir -p $outdir
     [[ -d $bindatadir ]]
+    mkdir -p $outdir
     corps=test
     if [[ $evaldev ]] ; then
         corps="devel $corps"
