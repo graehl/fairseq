@@ -59,6 +59,7 @@ cmd:option('-clip', 25,
     'clip threshold of gradients (per sequence without -timeavg)')
 cmd:option('-maxepoch', 100, 'maximum number of epochs')
 cmd:option('-minepochtoanneal', 0, 'minimum number of epochs before annealing')
+cmd:option('-patience', 0, 'if >0, allow (after minepochtoanneal) this many iterations with validation getting worse')
 cmd:option('-maxsourcelen', 0,
     'maximum source sentence length in training data')
 cmd:option('-ndatathreads', 1, 'number of threads for data preparation')

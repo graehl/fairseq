@@ -11,7 +11,6 @@ nickname() {
     perl -e '$_=shift;$_ = $1 if /_([0-9]+)$/; print $_' "$1"
 }
 main() {
-    lenpen=${lenpen:-4}
     outdir=ensemble
     config
     set -e
@@ -24,7 +23,7 @@ main() {
             [[ -d $f ]]
             [[ -f $f/$modelbest ]]
             basef=`basename $f`
-            lastmodeldir=$basef
+            lastmodeldir=$f
             outdir+=".$(nickname $basef)"
             fullmodels+=" $basef"
             mkoptmodel $f/$modelname
@@ -49,9 +48,12 @@ main() {
     if [[ ! $2 ]] ; then
         outdir=$lastmodeldir
     fi
-    echo "$fullmodels" > $outdir/fullmodels.ls
+    if [[ $testf ]] ; then
+        outdir=`dirname $testf`
+    fi
     [[ -d $bindatadir ]]
     mkdir -p $outdir
+    echo "$fullmodels" > $outdir/fullmodels.ls
     corps=test
     if [[ $evaldevonly ]] ; then
         corps="valid"
@@ -60,7 +62,7 @@ main() {
         corps="valid $corps"
     fi
     for corpus in $corps; do
-        name=eval.$corpus.$modelepoch.${beam:=8}.lp${lenpen:=4}.cov${covpen:=0}.sw${sw:=0}
+        name=eval.$corpus.$modelepoch.${beam:=16}.lp${lenpen:=15}.cov${covpen:=0}.sw${sw:=0}
         testf=${testf:-$outdir/${scorename:-$name}}
         [[ $quiet ]] || echo $outdir $corpus:
         if [[ $redoall || $regenerate || ! -s $testf ]] ; then

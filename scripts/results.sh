@@ -29,7 +29,7 @@ headers() {
 }
 sortresults() {
     local results=$1
-    sort -r -n -k 5 -k 8 "$results" > ${2:-$results.sorted}
+    sort -r -n -k 6 -k 8 "$results" > ${2:-$results.sorted}
 }
 checkpoints() {
     perl -ne '$c=$1 if /^\| checkpoint (\d+)/ && $c < $1; END { print ($c+0) }' "$@"
@@ -48,7 +48,7 @@ main() {
             if [[ $beam = 1 ]] ; then
                 lens="15"
             else
-                lens="8 15 30"
+                lens="2 8 15"
             fi
             for lenpen in $lens; do
                 testf=$d/results.b$beam.lp$lenpen

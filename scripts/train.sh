@@ -5,6 +5,9 @@ set -e
 . $d/common.sh
 
 main() {
+    if [[ -f STOP ]] ; then
+        return 1
+    fi
     set -e
     if [[ $align ]] ; then
         trainalignfile=`$d/symalign.sh union $TEXT`
@@ -28,7 +31,7 @@ main() {
             done
         done
         fairseq preprocess $langs -trainpref $TEXT/train -validpref $TEXT/valid -testpref $TEXT/test \
-                -thresholdsrc $thresholdsrc -thresholdtgt $threshold $alignarg -destdir $bindatadir
+                -thresholdsrc $thresholdsrc -thresholdtgt $threshold $alignarg -destdir $bindatadir 2>&1 | tee $bindatadir/preprocess.log
         for f in $bindatadir/*.th7; do
             ls -l $f
             [[ -f $f ]] || return 1
@@ -55,6 +58,6 @@ main() {
         fairseq optimize-fconv -input_model $model -output_model $optmodel
         ls -l $optmodel
     fi
-    seed=$seed $d/eval.sh $trained
+    lenpen=15 beam=16 seed=$seed $d/eval.sh $trained
 }
 main "$@" && exit 0 || exit 1

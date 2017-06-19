@@ -3,6 +3,19 @@
 unbpe() {
     sed 's/@@ //g;s/__LW_SW__ //g;'
 }
+cleanuplwat() {
+    perl -pe 's/(^| )__LW_AT__( |$)/$1/g' "$@"
+}
+detoklwat() {
+    perl -pe 's/ ?(?:__LW_AT__|\Q_-#-_\E) ?//go' "$@"
+}
+perlutf8() {
+    local enutf8=${enutf8:-en_US.UTF-8}
+    LC_ALL=$enutf8 perl "$@"
+}
+lcutf8() {
+    perlutf8 -pe '$_=lc($_)' "$@"
+}
 main() {
     set -e
     G=$1
@@ -10,12 +23,12 @@ main() {
     [[ -f $G ]]
     testscore=$G.score
     if [[ $redoall || ! $norescore || ! -s $testscore ]] ; then
-        if [[ $redoall || $resplit || ! -s $G.sys.bpe || ! -s $G.ref.bpe ]] ; then
+        if [[ $redoall || $resplit || $retokbleu || ! -s $G.sys.bpe || ! -s $G.ref.bpe ]] ; then
             grep ^H $G | cut -c3- | sort -n > $G.H
             grep ^T $G | cut -c3- | sort -n > $G.T
             [[ $quiet ]] || wc -l $G.H $G.T
-            cut -f3- < $G.H > $G.sys.bpe
-            cut -f2- < $G.T > $G.ref.bpe
+            cut -f3- < $G.H | cleanuplwat > $G.sys.bpe
+            cut -f2- < $G.T | cleanuplwat > $G.ref.bpe
         fi
         for f in sys ref; do
             unbpe < $G.$f.bpe > $G.$f
@@ -33,12 +46,15 @@ main() {
                 . $dconf/xmtconfig.sh
                 xmtconfig
                 score=$testscore.detok.lcBLEU
-                if [[ $redoall || $redotokbleu || ! -s $score ]] ; then
+                if [[ $redoall || $retokbleu || ! -s $score ]] ; then
                 (set -e
                  for f in sys ref; do
                      if [[ $f = sys || ! -s $G.$f.detok.lc ]] ; then
-                         xmtiopost $G.$f.bpe $G.$f.detok 2>/dev/null
-                         xmtiolc $G.$f.detok $G.$f.detok.lc 2>/dev/null
+                         set -x
+                         #xmtiopost $G.$f.bpe $G.$f.detok >/dev/null 2>/dev/null
+                         detoklwat $G.$f.bpe > $G.$f.detok
+                         #xmtiolc $G.$f.detok $G.$f.detok.lc >/dev/null 2>/dev/null
+                         lcutf8 $G.$f.detok > $G.$f.detok.lc
                      fi
                  done
                  set -x
@@ -56,7 +72,7 @@ main() {
         fi
         multscore=$testscore.multeval
         if [[ $redoall || $rescore || ! -s $multscore ]] ; then
-            multeval $G.sys $G.ref > $multscore
+            multeval1ref $G.ref $G.sys > $multscore
         fi
         [[ $quiet ]] ||             echo `pwd`/$multscore `pwd`/$score
         [[ $quiet ]] ||             tail  $multscore $score

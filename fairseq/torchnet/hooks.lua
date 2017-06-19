@@ -384,7 +384,11 @@ hooks.onCheckpoint = argcheck{
             if earlyStopping and state._onCheckpoint.prevvalloss
                 and state.epoch >= config.minepochtoanneal
                 and state._onCheckpoint.prevvalloss < valloss then
-                stopTraining = true
+                if config.patience > 0 then
+                  config.patience -= 1
+                else
+                  stopTraining = true
+                fi
             end
 
             -- Learning rate annealing

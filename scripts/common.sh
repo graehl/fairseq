@@ -27,22 +27,6 @@ detok() {
 abspath() {
     readlink -nfs "$@"
 }
-multevalabs() {
-    local hyp=$1
-    shift
-    multevalhome=${multevalhome:-~/multeval}
-    (
-    cd $multevalhome
-    ./multeval.sh eval --refs "$@" --hyps-baseline $hyp --meteor.language ${trglang:-en}
-    )
-}
-multeval() {
-    local fs=
-    for f in "$@"; do
-        fs+=" "$(abspath "$f")
-    done
-    multevalabs $fs
-}
 bleuscore() {
     ~/bin/bleu.pl -hyp "$@"
 }
@@ -107,8 +91,7 @@ config() {
     maxsourcelen=175
 
 
-    batchsz="${batchsize:=32}.${maxbatch:=1536}.${minepochtoanneal:=18}-${maxepoch:=40}"
-
+    batchsz="${batchsize:=64}.${maxbatch:=1200}.${minepochtoanneal:=15}-${maxepoch:=40}.p${patience:=2}"
 
     #increasing nembed nhid to 640 or 768 also works well. noutembed not so much? more training data supports larger network training w/o overfitting
 
@@ -163,7 +146,7 @@ config() {
     commonoptimize="-batchsize $batchsize -maxbatch $maxbatch -seed $seed -ndatathreads $ndatathreads -log "
     nagoptimize="-optim nag -timeavg -lr 0.25 -momentum 0.99 -clip 0.1 -bptt 0 -minepochtoanneal $minepochtoanneal -maxepoch $maxepoch"
 
-    fconvoptimize="-model fconv -nembed $nembed -noutembed $noutembed  $hidsarg -dropout $dropout -nenclayer $nenclayer -nlayer $nlayer -attnlayers $attnlayers -kwidth $kwidth -klmwidth $klmwidth -nhid $nhid -nagglayer $nagglayer -topnalign 100 $nagoptimize"
+    fconvoptimize="-model fconv -nembed $nembed -noutembed $noutembed  $hidsarg -dropout $dropout -nenclayer $nenclayer -nlayer $nlayer -attnlayers $attnlayers -kwidth $kwidth -klmwidth $klmwidth -nhid $nhid -nagglayer $nagglayer -topnalign 100 $nagoptimize -patience $patience"
 
     blstmtrained=$trainings/blstm.${nhid:=512}.${bbatch:=32}
     blstmoptimize="-model blstm -dropout 0.2 -dropout_hid 0 -batchsize $bbatch -optim adam -lr 0.0003125"
@@ -225,4 +208,47 @@ rmo0m0() {
     for f in "$@"; do
         renamerm "$f" ".o0x2048.m0x1024"
     done
+}
+
+
+multeval12() {
+    (
+        [[ -s srctrglang.sh ]] && . srctrglang.sh
+        ref=${3:-$TESTDETOKLC}
+        set -e
+        set -x
+        [[ -s $ref ]]
+        a=$1
+        [[ $a ]]
+        b=$2
+        [[ $b ]]
+        suf=${4:-sys.detok.lc}
+        as=$a*/*$suf
+        bs=$b*/*$suf
+        allnonempty $as
+        allnonempty $bs
+        multeval --refs "$ref" --hyps-baseline $as --hyps-sys1 $bs 2>&1 | tee multeval.`basename $a`.`basename $b`.log
+    )
+}
+multeval1ref() {
+    local ref=$1
+    shift
+    multeval --refs "$ref" --hyps-baseline "$@"
+}
+multevalabs() {
+    multevalhome=${multevalhome:-~/multeval}
+    (
+        cd $multevalhome
+        ./multeval.sh eval "$@" --meteor.language ${trglang:-en}
+    )
+}
+multeval() {
+    local fs=
+    for f in "$@"; do
+        if [[ -s "$f" && `dirname $f` != . ]] ; then
+            f=$(abspath "$f")
+        fi
+        fs+=" $f"
+    done
+    multevalabs $fs
 }
