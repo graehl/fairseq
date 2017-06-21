@@ -72,11 +72,20 @@ hooks.computeSampleStats = argcheck{
             -- to be modified if this changs. `sample.ntokens` represents the
             -- number of non-padding tokens in the sample and can be used for
             -- accumulating total average loss, for example.
+            if state.ntokens == nil then
+               state.ntokens = 0
+            end
+            if state.nsents == nil then
+               state.nsents = 0
+            end
             for _, sample in ipairs(state.samples) do
                 sample.size = sample.target:nElement()
                 sample.bptt = sample.target:size(1)
-                sample.bsz = sample.target:size(2)
+                nsents = sample.target:size(2)
+                state.nsents = state.nsents + nsents
+                sample.bsz = nsents
                 sample.ntokens = sample.target:ne(padIndex):sum()
+                state.ntokens = state.ntokens + sample.ntokens
                 sample.sourcelen = sample.source:size(1)
                 if sample.targetVocab then
                     if not state.dictstats then
@@ -385,10 +394,10 @@ hooks.onCheckpoint = argcheck{
                 and state.epoch >= config.minepochtoanneal
                 and state._onCheckpoint.prevvalloss < valloss then
                 if config.patience > 0 then
-                  config.patience -= 1
+                  config.patience = config.patience - 1
                 else
                   stopTraining = true
-                fi
+                end
             end
 
             -- Learning rate annealing

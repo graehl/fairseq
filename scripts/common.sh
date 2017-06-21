@@ -88,8 +88,7 @@ config() {
     bindatadir=data-bin/`basename $TEXT`-threshold${threshold:=2}$alignsuf
     trainings=${trainings:-trainings.$srclang-$trglang.$threshold}
 
-    maxsourcelen=175
-
+    maxsourcelen=${maxsourcelen:-175}
 
     batchsz="${batchsize:=64}.${maxbatch:=1200}.${minepochtoanneal:=15}-${maxepoch:=40}.p${patience:=2}"
 

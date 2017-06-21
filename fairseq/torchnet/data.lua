@@ -92,6 +92,30 @@ function data.mergeWithBeginPad(values, pad)
     return doMerge(values, pad, padBegin)
 end
 
+local function indexedDataSet(dataset, resamples)
+   while not torch.isTypeOf(dataset, 'tnt.IndexedDataset') do
+       if torch.isTypeOf(dataset, 'tnt.ResampleDataset') then
+           local sampler = dataset.__sampler
+           local source = dataset.__dataset
+           table.insert(resamples, function(idx)
+               return sampler(source, idx)
+           end)
+       end
+       if dataset.dataset then
+           dataset = dataset.dataset
+       elseif dataset.__dataset then
+           dataset = dataset.__dataset
+       else
+           error("Cannot find the IndexedDataset.")
+       end
+   end
+   return dataset
+end
+
+function data.dataSetSize(dataset)
+   return indexedDataSet(dataset, {}).size()
+end
+
 -- Returns a function for bucketing a tnt.IndexedDataset with
 -- BucketShuffledDataset.
 -- This accesses the dataset index directly to determine the size of a sample
@@ -103,23 +127,7 @@ function data.sizeFromIndex(field_name)
     return function(ds, idx)
         -- Find the underlying tnt.IndexedDataset
         if not dataset then
-            dataset = ds
-            while not torch.isTypeOf(dataset, 'tnt.IndexedDataset') do
-                if torch.isTypeOf(dataset, 'tnt.ResampleDataset') then
-                    local sampler = dataset.__sampler
-                    local source = dataset.__dataset
-                    table.insert(resamples, function(idx)
-                        return sampler(source, idx)
-                    end)
-                end
-                if dataset.dataset then
-                    dataset = dataset.dataset
-                elseif dataset.__dataset then
-                    dataset = dataset.__dataset
-                else
-                    error("Cannot find the IndexedDataset.")
-                end
-            end
+           dataset = indexedDataSet(ds, resamples)
         end
         -- Get the field index
         if not fieldNum then
@@ -508,6 +516,14 @@ data.makeDataIterators = argcheck{
         return trainits, testits
     end
 }
+
+function totalsz(trainsets)
+   local s = 0
+   for _, set in pairs(trainsets) do
+      s = s + set.size()
+   end
+   return s
+end
 
 -- Calls `data.makeDataIterators` with functions specific to the NMT setup and
 -- optionally wraps the resulting iterators in bptt-truncating iterators.

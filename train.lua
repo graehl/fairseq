@@ -62,7 +62,7 @@ cmd:option('-minepochtoanneal', 0, 'minimum number of epochs before annealing')
 cmd:option('-patience', 0, 'if >0, allow (after minepochtoanneal) this many iterations with validation getting worse')
 cmd:option('-maxsourcelen', 0,
     'maximum source sentence length in training data')
-cmd:option('-ndatathreads', 1, 'number of threads for data preparation')
+cmd:option('-ndatathreads', 1, 'number of threads for data preparation (>1 means sampling not deterministic given seed)')
 cmd:option('-log_interval', 1000, 'log training statistics every n updates')
 cmd:option('-save_interval', -1,
     'save snapshot every n updates (defaults to once per epoch)')
@@ -323,6 +323,26 @@ local onCheckpoint = hooks.call{
     saveLastState,
 }
 
+local epochwords = {}
+local epocht0 = 0
+
+local function move2(to, from, name)
+   to[name] = from[name]
+   from[name] = nil
+end
+
+local pretty = require 'pl.pretty'
+local function dumpstate(state)
+   if nil then
+   h = {}
+   move2(h, state, 'params')
+   move2(h, state, 'gradparams')
+   pretty.dump(state)
+   move2(state, h, 'params')
+   move2(state, h, 'gradparams')
+   end
+end
+
 engine.hooks.onUpdate = hooks.call{
     hooks.updateMeters{
         lossMeter = lossMeter,
@@ -333,14 +353,24 @@ engine.hooks.onUpdate = hooks.call{
         timeMeter = checkpointTimeMeter,
     },
     function(state)
-        if timeMeter.n == config.log_interval then
+        local n = state.ntokens
+        local epoch = state.epoch
+        local ew = epochwords[epoch] or 0
+        ew = ew + n
+        epochwords[epoch] = ew
+        if epoch == 0 then
+           epocht0 = state.epoch_t
+        end
+        if timeMeter.n >= config.log_interval then
+            dumpstate(state)
             local loss = lossMeter:value() / math.log(2)
             local ppl = math.pow(2, loss)
             local elapsed = timeMeter.n * timeMeter:value()
+            local n = lossMeter.n
             local statsstr = string.format(
-                '| epoch %03d | %07d updates | words/s %7d' ..
-                '| trainloss %8.2f | train ppl %8.2f',
-                state.epoch, state.t, lossMeter.n / elapsed, loss, ppl)
+               '| epoch %03d | %07d updates (%.2f%%) | words/s %7d' ..
+                '| trainloss %8.2f | train ppl %8.2f | words %08d (%.2f%%)',
+                epoch, state.t, 100. * state.epoch_t / epocht0, lossMeter.n / elapsed, loss, ppl, lossMeter.n, 100. * ew / epochwords[0])
             if state.dictstats then
                 statsstr = statsstr .. string.format(
                     ' | avg_dict_size %.2f',
@@ -353,7 +383,7 @@ engine.hooks.onUpdate = hooks.call{
         end
 
         if config.save_interval > 0 and
-            state.epoch_t % config.save_interval == 0 then
+            epoch_t % config.save_interval == 0 then
             saveLastState(state)
         end
     end
