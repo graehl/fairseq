@@ -85,7 +85,14 @@ config() {
     detokenizer=detokenizer.$trglang
     [[ -x $detokenizer ]] || detokenizer=$TEXT/detokenizer.$trglang
     [[ -x $detokenizer ]] || detokenizer=cat
-    bindatadir=data-bin/`basename $TEXT`-threshold${threshold:=2}$alignsuf
+    if [[ ${threshold:=2} -lt 2 ]] ; then
+        threshold=2
+        # we want some target unks always. if you use 1 then target vocab has 3 items in it (oops)
+    fi
+    if [[ ${thresholdsrc:=2} -lt 2 ]] ; then
+        thresholdsrc=2
+    fi
+    bindatadir=data-bin/`basename $TEXT`-threshold$threshold$alignsuf
     trainings=${trainings:-trainings.$srclang-$trglang.$threshold}
 
     maxsourcelen=${maxsourcelen:-175}
@@ -184,11 +191,6 @@ config() {
     modelname=model_${modelepoch:=best}.th7
     model=$trained/$modelname
     optmodel=`optmodelname "$model"`
-    thresholdsrc=${thresholdsrc:-$threshold}
-    if [[ $threshold -lt 2 ]] ; then
-        threshold=2
-        # we want some target unks always??
-    fi
     set -e
 }
 modelbest=model_best.th7
@@ -250,4 +252,37 @@ multeval() {
         fs+=" $f"
     done
     multevalabs $fs
+}
+models() {
+    if [[ $1 ]] ; then
+        repn=
+        for f in "$@"; do
+            [[ -d $f ]] || f="$trainings/$f"
+            [[ -f $f/$modelbest ]] || f="$trainings/$f"
+            [[ -d $f ]]
+            [[ -f $f/$modelbest ]]
+            basef=`basename $f`
+            lastmodeldir=$f
+            outdir+=".$(nickname $basef)"
+            fullmodels+=" $basef"
+            mkoptmodel $f/$modelname
+            f=$optmodel
+            appendrepn 1 "$f"
+        done
+        endrepn
+        model=$repn
+    else
+        fullmodels=$model
+        mkoptmodel $model
+        if [[ -s $optmodel ]] ; then
+            model=$optmodel
+            fconvfast=
+        elif [[ ${nofconvfast:=1} = 1 ]] ; then
+            fconvfast=
+        else
+            fconvfast=$fconvfastarg
+        fi
+        [[ -f $model ]]
+    fi
+    echo ${beam:=16}.lp${lenpen:=15}.cov${covpen:=0}.sw${sw:=0} > /dev/null
 }

@@ -5,8 +5,9 @@ if [[ ! -f srctrglang.sh ]] ; then
     cd ..
 fi
 . srctrglang.sh
-. $d/generate.sh
 . $d/common.sh
+config
+. $d/generate.sh
 nickname() {
     perl -e '$_=shift;$_ = $1 if /_([0-9]+)$/; print $_' "$1"
 }
@@ -15,36 +16,7 @@ main() {
     config
     set -e
     fullmodels=
-    if [[ $1 ]] ; then
-        repn=
-        for f in "$@"; do
-            [[ -d $f ]] || f="$trainings/$f"
-            [[ -f $f/$modelbest ]] || f="$trainings/$f"
-            [[ -d $f ]]
-            [[ -f $f/$modelbest ]]
-            basef=`basename $f`
-            lastmodeldir=$f
-            outdir+=".$(nickname $basef)"
-            fullmodels+=" $basef"
-            mkoptmodel $f/$modelname
-            f=$optmodel
-            appendrepn 1 "$f"
-        done
-        endrepn
-        model=$repn
-    else
-        fullmodels=$model
-        mkoptmodel $model
-        if [[ -s $optmodel ]] ; then
-            model=$optmodel
-            fconvfast=
-        elif [[ ${nofconvfast:=1} = 1 ]] ; then
-            fconvfast=
-        else
-            fconvfast=$fconvfastarg
-        fi
-        [[ -f $model ]]
-    fi
+    models "$@"
     if [[ ! $2 ]] ; then
         outdir=$lastmodeldir
     fi
@@ -76,10 +48,12 @@ main() {
         [[ $quiet ]] || tail $testf
         if [[ $corpus = test ]] ; then
             detoklc=$TESTDETOKLC
+            detokmixed=$TESTDETOK
         else
             detoklc=$VALIDDETOKLC
+            detokmixed=$VALIDDETOK
         fi
-        detoklc=$detoklc seed=$seed $d/score.sh $testf
+        detoklc=$detoklc detokmixed=$detokmixed seed=$seed $d/score.sh $testf
     done
 }
 main "$@" && exit 0 || exit 1
