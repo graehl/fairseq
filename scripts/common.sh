@@ -89,15 +89,19 @@ config() {
         threshold=2
         # we want some target unks always. if you use 1 then target vocab has 3 items in it (oops)
     fi
-    if [[ ${thresholdsrc:=2} -lt 2 ]] ; then
+    if [[ ${thresholdsrc:=${threshold}} -lt 2 ]] ; then
         thresholdsrc=2
     fi
-    bindatadir=data-bin/`basename $TEXT`-threshold$threshold$alignsuf
-    trainings=${trainings:-trainings.$srclang-$trglang.$threshold}
+    thresholdname=$threshold
+    if [[ $thresholdsrc != $threshold ]] ; then
+        thresholdname+="-s$thresholdsrc"
+    fi
+    bindatadir=data-bin/`basename $TEXT`-threshold$thresholdname$alignsuf
+    trainings=${trainings:-trainings.$srclang-$trglang.$thresholdname}
 
-    maxsourcelen=${maxsourcelen:-175}
+    maxsourcelen=${maxsourcelen:-160}
 
-    batchsz="${batchsize:=64}.${maxbatch:=1200}.${minepochtoanneal:=15}-${maxepoch:=40}.p${patience:=2}"
+    batchsz="${batchsize:=64}.${maxbatch:=1024}.${minepochtoanneal:=15}-${maxepoch:=40}.p${patience:=2}"
 
     #increasing nembed nhid to 640 or 768 also works well. noutembed not so much? more training data supports larger network training w/o overfitting
 

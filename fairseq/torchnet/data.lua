@@ -36,9 +36,12 @@ local data = {}
 function data.makeInput(T, eos)
     -- The training input is the previous token. 'eos' is used as the start
     -- symbol.
-    local input = T.new():resize(T:size(1))
-    input[1] = eos
-    input:narrow(1, 2, T:size(1)-1):copy(T:narrow(1, 1, T:size(1)-1))
+    local nt = T:size(1)
+    local input = T.new():resize(nt)
+    if nt > 0 then
+        input[1] = eos
+        input:narrow(1, 2, nt-1):copy(T:narrow(1, 1, nt-1))
+    end
     return input
 end
 
