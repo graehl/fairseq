@@ -1,10 +1,10 @@
 #!/bin/bash
 #outputs: $G.score (fairseq) $G.multeval $G.score.detok.lcBLEU (xmt)
 unbpe() {
-    sed 's/@@ //g;s/__LW_SW__ //g;'
+    sed 's/\Q@@\E //g;s/__LW_SW__ //g;'
 }
 cleanuplwat() {
-    perl -pe 's/(^| )__LW_AT__( |$)/$1/g' "$@"
+    perl -pe 's/(^| )__LW_AT__|\Q_-#-_\E( |$)/$1/g' "$@"
 }
 detoklwat() {
     perl -pe 's/ ?(?:__LW_AT__|\Q_-#-_\E) ?//go' "$@"
@@ -15,6 +15,17 @@ perlutf8() {
 }
 lcutf8() {
     perlutf8 -pe '$_=lc($_)' "$@"
+}
+savecmd() {
+    local out=$1
+    shift
+    echo "$*" > $out.cmd
+    $* > $out
+    cat $out
+}
+normalize() {
+    /home/graehl/bin/Utf8Normalize.sh --nfkd "$@"
+    #2>/dev/null
 }
 main() {
     set -e
@@ -27,8 +38,8 @@ main() {
             grep ^H $G | cut -c3- | sort -n > $G.H
             grep ^T $G | cut -c3- | sort -n > $G.T
             [[ $quiet ]] || wc -l $G.H $G.T
-            cut -f3- < $G.H > $G.sys.bpe
-            cut -f2- < $G.T > $G.ref.bpe
+            cut -f3- < $G.H | normalize > $G.sys.bpe
+            cut -f2- < $G.T | normalize > $G.ref.bpe
         fi
         for f in sys ref; do
             unbpe < $G.$f.bpe > $G.$f
@@ -46,45 +57,51 @@ main() {
                 . $dconf/xmtconfig.sh
                 xmtconfig
             fi
+            echo detoklc=${detoklc:=${TESTDETOKLC:-test.trg.lc}}
+            echo detokmixed=${detokmixed:=${TESTDETOK:-test.trg}}
+            [[ -s $detoklcin ]] || lcutf8 < $detokmixed > $detoklc
+            detoklcin=$detoklc
+            detokmixedin=$detokmixed
+            detoklc=$detoklc.norm
+            detokmixed=$detokmixed.norm
+            if [[ $resplit || ! -s $detoklc || ! -s $detokmixed ]] ; then
+                normalize < $detoklcin > $detoklc
+                normalize < $detokmixedin > $detokmixed
+            fi
             scoremixed=$testscore.detok.mixedBLEU
             score=$testscore.detok.lcBLEU
+            refscore=$testscore.detok.ref.lcBLEU
             if [[ $redoall || $retokbleu || ! -s $score || ! -s $scoremixed ]] ; then
-                (set -e
-                 set -x
                  for f in sys ref; do
                      if [[ $retokbleu || $f = sys || ! -s $G.$f.detok.lc ]] ; then
                          #xmtiopost $G.$f.bpe $G.$f.detok >/dev/null 2>/dev/null
-                         detoklwat $G.$f > $G.$f.detok
+                         detoklwat $G.$f | normalize > $G.$f.detok
                          #xmtiolc $G.$f.detok $G.$f.detok.lc >/dev/null 2>/dev/null
-                         lcutf8 $G.$f.detok > $G.$f.detok.lc
+                         lcutf8 $G.$f.detok | normalize > $G.$f.detok.lc
                      fi
                  done
-                 echo detoklc=${detoklc:=${TESTDETOKLC:-test.eng.lc}}
-                 echo detokmixed=${detokmixed:=${TESTDETOK:-test.eng}}
-                 #if [[ -f $detoklc ]] ; then
-                 if true; then
-                     echo "bleuscore $G.sys.detok.lc $detoklc | tee $score" > $score.cmd
-                     bleuscore $G.sys.detok.lc $detoklc > $score 2>/dev/null
-                 else
-                     bleuscore $G.sys.detok.lc $G.ref.detok.lc > $score 2>/dev/null
-                 fi
+                 [[ -s $detoklc ]] || detoklc=$G.ref.detok.lc
+                 [[ -s $detokmixed ]] || detokmixed=$G.ref.detok
+                 savecmd $refscore bleuscore $G.sys.detok.lc $detoklc
+                     #2>/dev/null
+                 savecmd $score bleuscore $G.sys.detok.lc $G.ref.detok.lc 2>/dev/null
                  #if [[ -f $detokmixed ]] ; then
-                 if true; then
-                     echo "bleuscore $G.sys.detok $detokmixed | tee $scoremixed" > $scoremixed.cmd
-                     bleuscore $G.sys.detok $detokmixed > $scoremixed 2>/dev/null
-                 fi
+                 savecmd $scoremixed bleuscore $G.sys.detok $detokmixed
+                 #2>/dev/null
                  #[[ $quiet ]] ||         echo `pwd`/$score
                  #[[ $quiet ]] ||         cat $score
-                )
             fi
         fi
         multscore=$testscore.multeval
+        multscoredetok=$testscore.multeval.detok
+        multscoredetoklc=$testscore.multeval.detok.lc
         if [[ $redoall || $rescore || ! -s $multscore ]] ; then
-            echo "multeval1ref $G.ref $G.sys | tee $multscore" > $multscore.cmd
-            multeval1ref $G.ref $G.sys > $multscore
+            savecmd $multscore multeval1ref $G.ref $G.sys
+            #savecmd $multscoredetok multeval1ref $detokmixed $G.sys.detok
+            #savecmd $multscoredetoklc multeval1ref $detoklc $G.sys.detok.lc
         fi
         #[[ $quiet ]] ||             echo `pwd`/$multscore `pwd`/$score
-        [[ $quiet ]] ||             tail $multscore $score
+        [[ $quiet ]] ||             tail $multscore* $score* $multscoredetok* $multscoredetoklc*
     fi
 }
 main "$@" && exit 0 || exit 1

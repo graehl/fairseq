@@ -49,6 +49,9 @@ main() {
         if [[ $corpus = test ]] ; then
             detoklc=$TESTDETOKLC
             detokmixed=$TESTDETOK
+            set -e
+            [[ -s $detoklc ]]
+            [[ -s $detokmixed ]]
         else
             detoklc=$VALIDDETOKLC
             detokmixed=$VALIDDETOK

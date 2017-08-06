@@ -27,7 +27,16 @@ detok() {
 abspath() {
     readlink -nfs "$@"
 }
+showref() {
+    md5sum "$1"
+    wc < "$1"
+}
+bleuscore1ref() {
+    showref "$1"
+    ~/bin/bleu.pl -hyp "$2" "$1"
+}
 bleuscore() {
+    showref "$2"
     ~/bin/bleu.pl -hyp "$@"
 }
 grepmultbleu() {
@@ -101,7 +110,7 @@ config() {
 
     maxsourcelen=${maxsourcelen:-160}
 
-    batchsz="${batchsize:=64}.${maxbatch:=1024}.${minepochtoanneal:=15}-${maxepoch:=40}.p${patience:=2}"
+    batchsz="${batchsize:=64}.${maxbatch:=1024}.${minepochtoanneal:=10}-${maxepoch:=40}.p${patience:=2}"
 
     #increasing nembed nhid to 640 or 768 also works well. noutembed not so much? more training data supports larger network training w/o overfitting
 
@@ -214,8 +223,6 @@ rmo0m0() {
         renamerm "$f" ".o0x2048.m0x1024"
     done
 }
-
-
 multeval12() {
     (
         [[ -s srctrglang.sh ]] && . srctrglang.sh
@@ -237,6 +244,7 @@ multeval12() {
 }
 multeval1ref() {
     local ref=$1
+    showref "$ref"
     shift
     multeval --refs "$ref" --hyps-baseline "$@"
 }
