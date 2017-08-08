@@ -24,7 +24,11 @@ savecmd() {
     cat $out
 }
 normalize() {
-    /home/graehl/bin/Utf8Normalize.sh --nfkd "$@"
+    if [[ $uft8normalize && $trgtokpipe ]] ; then
+        xmttrgnorm
+    else
+        /home/graehl/bin/Utf8Normalize.sh --nfkd
+    fi
     #2>/dev/null
 }
 main() {
@@ -45,7 +49,7 @@ main() {
             unbpe < $G.$f.bpe > $G.$f
             [[ $quiet ]] || wc $G.$f $G.$f.bpe
         done
-        fairseq score -sys $G.sys -ref $G.ref > $testscore
+        savecmd $testscore fairseq score -sys $G.sys -ref $G.ref
         [[ $quiet ]] || echo `pwd`/$testscore
         [[ $quiet ]] || cat $testscore
         . `dirname $0`/common.sh
@@ -57,6 +61,7 @@ main() {
                 . $dconf/xmtconfig.sh
                 xmtconfig
             fi
+            echo toklc=${toklc:=${TESTTOKLC:-test.trg.tok.lc}}
             echo detoklc=${detoklc:=${TESTDETOKLC:-test.trg.lc}}
             echo detokmixed=${detokmixed:=${TESTDETOK:-test.trg}}
             [[ -s $detoklcin ]] || lcutf8 < $detokmixed > $detoklc
@@ -97,6 +102,7 @@ main() {
         multscoredetoklc=$testscore.multeval.detok.lc
         if [[ $redoall || $rescore || ! -s $multscore ]] ; then
             savecmd $multscore multeval1ref $G.ref $G.sys
+            savecmd $testscore.bleuscore bleuscore $G.sys $G.ref
             #savecmd $multscoredetok multeval1ref $detokmixed $G.sys.detok
             #savecmd $multscoredetoklc multeval1ref $detoklc $G.sys.detok.lc
         fi

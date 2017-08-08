@@ -110,7 +110,7 @@ config() {
 
     maxsourcelen=${maxsourcelen:-160}
 
-    batchsz="${batchsize:=64}.${maxbatch:=1024}.${minepochtoanneal:=10}-${maxepoch:=40}.p${patience:=2}"
+    batchsz="${batchsize:=64}.${maxbatch:=1024}.${minepochtoanneal:=12}-${maxepoch:=40}.p${patience:=2}"
 
     #increasing nembed nhid to 640 or 768 also works well. noutembed not so much? more training data supports larger network training w/o overfitting
 
@@ -163,7 +163,7 @@ config() {
 
     ndatathreads=${ndatathreads:=4}
     commonoptimize="-batchsize $batchsize -maxbatch $maxbatch -seed $seed -ndatathreads $ndatathreads -log "
-    nagoptimize="-optim nag -timeavg -lr 0.25 -momentum 0.99 -clip 0.1 -bptt 0 -minepochtoanneal $minepochtoanneal -maxepoch $maxepoch"
+    nagoptimize="-optim nag -timeavg -lr ${naglr:-0.25} -momentum 0.99 -clip 0.1 -bptt 0 -minepochtoanneal $minepochtoanneal -maxepoch $maxepoch"
 
     fconvoptimize="-model fconv -nembed $nembed -noutembed $noutembed  $hidsarg -dropout $dropout -nenclayer $nenclayer -nlayer $nlayer -attnlayers $attnlayers -kwidth $kwidth -klmwidth $klmwidth -nhid $nhid -nagglayer $nagglayer -topnalign 100 $nagoptimize -patience $patience"
 
