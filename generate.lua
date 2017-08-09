@@ -29,7 +29,6 @@ local pretty = require 'fairseq.text.pretty'
 local cmd = torch.CmdLine()
 generateopt.addopt(cmd)
 cmd:option('-nobleu', false, 'don\'t produce final bleu score')
-cmd:option('-quiet', false, 'don\'t print generated text')
 cmd:option('-batchsize', 16, 'batch size')
 cmd:option('-dataset', 'test', 'data subset')
 cmd:option('-partial', '1/1',
@@ -43,21 +42,6 @@ local config = cmd:parse(arg)
 torch.manualSeed(config.seed)
 if cuda.cutorch then
     cutorch.manualSeed(config.seed)
-end
-
-local function accTime()
-    local total = {}
-    return function(times)
-        for k, v in pairs(times or {}) do
-            if not total[k] then
-                total[k] = {real = 0, sys = 0, user = 0}
-            end
-            for l, w in pairs(v) do
-                total[k][l] = total[k][l] + w
-            end
-        end
-        return total
-    end
 end
 
 local function accBleu(beam, dict)
@@ -111,6 +95,7 @@ partidx, nparts = tonumber(partidx), tonumber(nparts)
 
 -- let's decode
 local addBleu = accBleu(config.beam, dict)
+local accTime = generateopt.accTime
 local addTime = accTime()
 local timer = torch.Timer()
 local nsents, ntoks, nbatch = 0, 0, 0

@@ -22,7 +22,9 @@ function generateopt.addopt(cmd)
     cmd:option('-subwordsuffix', '__LW_SW__',
         'for subwordpen: subword elements end in this suffix')
     cmd:option('-covpen', 0,
-        'coverage penalty: favor hypotheses that cover all source tokens')
+               'coverage penalty: favor hypotheses that cover all source tokens')
+
+    cmd:option('-quiet', false, 'don\'t print generated text')
 end
 
 function generateopt.loadVocabModelSearcher(config)
@@ -31,6 +33,21 @@ function generateopt.loadVocabModelSearcher(config)
     local model = modelopt.loadmodel(config)
     local searcher = modelopt.searcher(model, config)
     return vocab, model, searcher
+end
+
+function generateopt.accTime()
+    local total = {}
+    return function(times)
+        for k, v in pairs(times or {}) do
+            if not total[k] then
+                total[k] = {real = 0, sys = 0, user = 0}
+            end
+            for l, w in pairs(v) do
+                total[k][l] = total[k][l] + w
+            end
+        end
+        return total
+    end
 end
 
 return generateopt

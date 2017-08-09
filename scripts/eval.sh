@@ -38,11 +38,25 @@ main() {
         testf=${testf:-$outdir/${scorename:-$name}}
         [[ $quiet ]] || echo $outdir $corpus:
         if [[ $redoall || $regenerate || ! -s $testf ]] ; then
-            cmd="fairseq generate -ndatathreads ${ndatathreads:-4} $langs -datadir $bindatadir -dataset $corpus -path $model -beam $beam -batchsize $batchsize $fconvfast -maxlen $maxsourcelen -lenpen $lenpen -covpen $covpen $swsuffixarg -subwordpen $sw"
-            echo2 $cmd
-            if ! time $cmd > $testf ; then
-                rm $testf
-                exit 1
+            if [[ ! $nogenerate ]] ; then
+                genargs="$langs -path $model -beam $beam $fconvfast -maxlen $maxsourcelen -lenpen $lenpen -covpen $covpen $swsuffixarg -subwordpen $sw -datadir $bindatadir"
+                generating=$generatepre
+                if [[ ! -s $TESTSRCTOKENS ]] ; then
+                    echo2 no TESTSRCTOKENS=$TESTSRCTOKENS
+                    generating=1
+                fi
+                if [[ $generating || $corpus = valid ]] ; then
+                    cmd="fairseq generate $genargs -batchsize $batchsize -ndatathreads ${ndatathreads:-4} -dataset $corpus"
+                else
+                    cmd="fairseq generate-lines -pretty $genargs -input $TESTSRCTOKENS"
+                fi
+                echo "$cmd" > $testf.log
+                echo2 "$cmd"
+                if ! time $cmd > $testf ; then
+                    rm $testf
+                    exit 1
+                fi
+                egrep '^\|' $testf > $testf.perf
             fi
         fi
         [[ $quiet ]] || tail $testf

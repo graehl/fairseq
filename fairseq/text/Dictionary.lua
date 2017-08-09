@@ -135,7 +135,9 @@ end
 function Dictionary:getString(vec)
     local out_tbl = {}
     for i = 1, vec:size(1) do
-        table.insert(out_tbl, self:getSymbol(vec[i]))
+        if vec[i] ~= nil and vec[i] > 0 then
+           table.insert(out_tbl, self:getSymbol(vec[i]))
+        end
     end
     local str = table.concat(out_tbl, ' ')
     return str

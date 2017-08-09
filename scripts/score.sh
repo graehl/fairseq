@@ -24,12 +24,28 @@ savecmd() {
     cat $out
 }
 normalize() {
-    if [[ $uft8normalize && $trgtokpipe ]] ; then
+    (set -x
         xmttrgnorm
-    else
-        /home/graehl/bin/Utf8Normalize.sh --nfkd
-    fi
+        #/home/graehl/bin/Utf8Normalize.sh --nfkd
+    )
     #2>/dev/null
+}
+cutlastof3() {
+    cut -f2- "$@" |
+    cut -f2- "$@"
+}
+psidebyside() {
+    perl -e '$pkeep=shift;
+@f=map {my $fh; open $fh,"<",$_ or die "open $_"; $fh} @ARGV;
+$n=0;
+for(;;) {
+    ++$n; @l = map { scalar <$_> } @f; last if !defined($l[0]);
+    next unless rand() < $pkeep; print "$n\n"; print $_ for (@l);
+}
+' "$@"
+}
+sidebyside() {
+    psidebyside 1 "$@"
 }
 main() {
     set -e
@@ -37,45 +53,62 @@ main() {
     G=${G%.score}
     [[ -f $G ]]
     testscore=$G.score
+    . `dirname $0`/common.sh
     if [[ $redoall || ! $norescore || ! -s $testscore ]] ; then
+        dconf=.
+        [[ -f $dconf/config.sh ]] || dconf+=..
+        if [[ -f $dconf/config.sh ]] ; then
+            . $dconf/config.sh
+            ls -l ${TESTTOKENS:?$dconf/srctrglang.sh no TESTTOKENS set}
+        fi
         if [[ $redoall || $resplit || $retokbleu || ! -s $G.sys.bpe || ! -s $G.ref.bpe ]] ; then
+#S-197   to the participating members
+#T-197   الى السادة المشتركين
+#H-197   -0.8388689160347        للدول المشاركة
+#A-197   1 1 4
             grep ^H $G | cut -c3- | sort -n > $G.H
             grep ^T $G | cut -c3- | sort -n > $G.T
-            [[ $quiet ]] || wc -l $G.H $G.T
-            cut -f3- < $G.H | normalize > $G.sys.bpe
-            cut -f2- < $G.T | normalize > $G.ref.bpe
+            cutlastof3 < $G.H | normalize > $G.sys.bpe
+            if [[ -s $G.T ]] ; then
+                cutlastof3 < $G.T | normalize > $G.ref.bpe
+            elif [[ -s $TESTTOKENS ]] ; then
+                rm $G.T
+                normalize < $TESTTOKENS > $G.ref.bpe
+            fi
+            [[ $quiet ]] || wc $TESTTOKENS $G.H $G.sys.bpe $G.ref.bpe
         fi
         for f in sys ref; do
             unbpe < $G.$f.bpe > $G.$f
             [[ $quiet ]] || wc $G.$f $G.$f.bpe
         done
-        savecmd $testscore fairseq score -sys $G.sys -ref $G.ref
+#        savecmd $testscore fairseq score -ignore_case -sys $G.sys -ref $G.ref
+        savecmd $testscore.bpescore fairseq score -ignore_case -sys $G.sys.bpe -ref $G.ref.bpe
+        savecmd $testscore bleuscore $G.sys.bpe $G.ref.bpe
+        savecmd $testscore.bpe bleuscore $G.sys $G.ref
         [[ $quiet ]] || echo `pwd`/$testscore
-        [[ $quiet ]] || cat $testscore
-        . `dirname $0`/common.sh
-        dconf=.
-        [[ -f $dconf/srctrglang.sh ]] || dconf=..
-        if [[ -f $dconf/srctrglang.sh ]] ; then
-            . $dconf/srctrglang.sh
-            if [[ -f $dconf/xmtconfig.sh ]] ; then
-                . $dconf/xmtconfig.sh
-                xmtconfig
-            fi
+        [[ $quiet ]] || cat $testscore{,.bpe}
+        if [[ -f $dconf/config.sh ]] ; then
+            . $dconf/config.sh
             echo toklc=${toklc:=${TESTTOKLC:-test.trg.tok.lc}}
             echo detoklc=${detoklc:=${TESTDETOKLC:-test.trg.lc}}
             echo detokmixed=${detokmixed:=${TESTDETOK:-test.trg}}
-            [[ -s $detoklcin ]] || lcutf8 < $detokmixed > $detoklc
             detoklcin=$detoklc
+            [[ -s $detoklcin ]] || lcutf8 < $detokmixed > $detoklc
             detokmixedin=$detokmixed
             detoklc=$detoklc.norm
             detokmixed=$detokmixed.norm
-            if [[ $resplit || ! -s $detoklc || ! -s $detokmixed ]] ; then
+            toklcin=$toklc
+            toklc=$toklc.norm
+            lcutf8 < $G.sys > $G.sys.lc
+            if [[ $resplit || ! -s $detoklc || ! -s $detokmixed || ! -s $toklc ]] ; then
+                normalize < $toklcin > $toklc
                 normalize < $detoklcin > $detoklc
                 normalize < $detokmixedin > $detokmixed
             fi
             scoremixed=$testscore.detok.mixedBLEU
             score=$testscore.detok.lcBLEU
             refscore=$testscore.detok.ref.lcBLEU
+            tokscore=$testscore.tok.lcBLEU
             if [[ $redoall || $retokbleu || ! -s $score || ! -s $scoremixed ]] ; then
                  for f in sys ref; do
                      if [[ $retokbleu || $f = sys || ! -s $G.$f.detok.lc ]] ; then
@@ -85,13 +118,19 @@ main() {
                          lcutf8 $G.$f.detok | normalize > $G.$f.detok.lc
                      fi
                  done
+                 [[ -s $toklc ]] || toklc=$G.ref.lc
                  [[ -s $detoklc ]] || detoklc=$G.ref.detok.lc
                  [[ -s $detokmixed ]] || detokmixed=$G.ref.detok
+                 savecmd $tokscore bleuscore $G.sys.lc $toklc
                  savecmd $refscore bleuscore $G.sys.detok.lc $detoklc
-                     #2>/dev/null
-                 savecmd $score bleuscore $G.sys.detok.lc $G.ref.detok.lc 2>/dev/null
+                 #2>/dev/null
+                 lcs="$G.sys.detok.lc $G.ref.detok.lc"
+                 sidebyside $TESTSRC $lcs > $G.lc.sidebyside
+                 sidebyside $TESTSRC $mixeds > $G.sidebyside
+                 savecmd $score bleuscore $lcs 2>/dev/null
                  #if [[ -f $detokmixed ]] ; then
-                 savecmd $scoremixed bleuscore $G.sys.detok $detokmixed
+                 savecmd $scoremixed bleuscore $G.sys.detok $G.ref.detok
+                 #$detokmixed
                  #2>/dev/null
                  #[[ $quiet ]] ||         echo `pwd`/$score
                  #[[ $quiet ]] ||         cat $score
@@ -100,14 +139,15 @@ main() {
         multscore=$testscore.multeval
         multscoredetok=$testscore.multeval.detok
         multscoredetoklc=$testscore.multeval.detok.lc
-        if [[ $redoall || $rescore || ! -s $multscore ]] ; then
+        if false && [[ $redoall || $rescore || ! -s $multscore ]] ; then
             savecmd $multscore multeval1ref $G.ref $G.sys
-            savecmd $testscore.bleuscore bleuscore $G.sys $G.ref
             #savecmd $multscoredetok multeval1ref $detokmixed $G.sys.detok
             #savecmd $multscoredetoklc multeval1ref $detoklc $G.sys.detok.lc
         fi
         #[[ $quiet ]] ||             echo `pwd`/$multscore `pwd`/$score
-        [[ $quiet ]] ||             tail $multscore* $score* $multscoredetok* $multscoredetoklc*
+        #[[ $quiet ]] ||             tail $multscore* $score*
+        tail -9 $G/*.sidebyside $G.*BLEU $G.perf
+        #$multscoredetok* $multscoredetoklc*
     fi
 }
 main "$@" && exit 0 || exit 1
