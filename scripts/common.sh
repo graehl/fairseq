@@ -28,16 +28,16 @@ abspath() {
     readlink -nfs "$@"
 }
 showref() {
-    md5sum "$1"
+    echo -n `md5sum "$1"`
     wc < "$1"
 }
 bleuscore1ref() {
     showref "$1"
-    ~/bin/bleu.pl -hyp "$2" "$1"
+    bleuscore "$2" "$1"
 }
 bleuscore() {
     showref "$2"
-    ~/bin/bleu.pl -hyp "$@"
+    ~/bin/bleu.pl -hyp "$@" | egrep -v '^Cumulative '
 }
 grepmultbleu() {
     #n=1            BLEU (s_sel/s_opt/p)   METEOR (s_sel/s_opt/p) TER (s_sel/s_opt/p)    Length (s_sel/s_opt/p)

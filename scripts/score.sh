@@ -24,7 +24,7 @@ savecmd() {
     cat $out
 }
 normalize() {
-    (set -x
+    (
         xmttrgnorm
         #/home/graehl/bin/Utf8Normalize.sh --nfkd
     )
@@ -62,6 +62,7 @@ main() {
             ls -l ${TESTTOKENS:?$dconf/srctrglang.sh no TESTTOKENS set}
         fi
         if [[ $redoall || $resplit || $retokbleu || ! -s $G.sys.bpe || ! -s $G.ref.bpe ]] ; then
+#sort is because:
 #S-197   to the participating members
 #T-197   الى السادة المشتركين
 #H-197   -0.8388689160347        للدول المشاركة
@@ -82,13 +83,12 @@ main() {
             [[ $quiet ]] || wc $G.$f $G.$f.bpe
         done
 #        savecmd $testscore fairseq score -ignore_case -sys $G.sys -ref $G.ref
-        savecmd $testscore.bpescore fairseq score -ignore_case -sys $G.sys.bpe -ref $G.ref.bpe
+#        savecmd $testscore.bpe fairseq score -ignore_case -sys $G.sys.bpe -ref $G.ref.bpe
         savecmd $testscore bleuscore $G.sys.bpe $G.ref.bpe
         savecmd $testscore.bpe bleuscore $G.sys $G.ref
         [[ $quiet ]] || echo `pwd`/$testscore
         [[ $quiet ]] || cat $testscore{,.bpe}
         if [[ -f $dconf/config.sh ]] ; then
-            . $dconf/config.sh
             echo toklc=${toklc:=${TESTTOKLC:-test.trg.tok.lc}}
             echo detoklc=${detoklc:=${TESTDETOKLC:-test.trg.lc}}
             echo detokmixed=${detokmixed:=${TESTDETOK:-test.trg}}
@@ -126,10 +126,11 @@ main() {
                  #2>/dev/null
                  lcs="$G.sys.detok.lc $G.ref.detok.lc"
                  sidebyside $TESTSRC $lcs > $G.lc.sidebyside
-                 sidebyside $TESTSRC $mixeds > $G.sidebyside
                  savecmd $score bleuscore $lcs 2>/dev/null
                  #if [[ -f $detokmixed ]] ; then
-                 savecmd $scoremixed bleuscore $G.sys.detok $G.ref.detok
+                 mixeds="$G.sys.detok $G.ref.detok"
+                 savecmd $scoremixed bleuscore $mixeds
+                 sidebyside $TESTSRC $mixeds > $G.sidebyside
                  #$detokmixed
                  #2>/dev/null
                  #[[ $quiet ]] ||         echo `pwd`/$score
@@ -146,7 +147,10 @@ main() {
         fi
         #[[ $quiet ]] ||             echo `pwd`/$multscore `pwd`/$score
         #[[ $quiet ]] ||             tail $multscore* $score*
-        tail -9 $G/*.sidebyside $G.*BLEU $G.perf
+        set -x
+        tail -n 4 $G*.sidebyside $G.*BLEU $G.perf
+        grep BLEU `dirname $G`/*.mixedBLEU | sort -k 3 -n
+        grep BLEU $scoremixed
         #$multscoredetok* $multscoredetoklc*
     fi
 }
